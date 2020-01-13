@@ -155,10 +155,14 @@ pub async fn run(opts: Opts) {
             }
             for u in &users.users {
                 if u.blocked_by {
-                    log::info!("User {} has blocked {}", u.id, auth);
-                    if !(opts.no_block || u.blocking) {
-                        tx.send(u.id)
-                            .expect("receiver half has been closed unexpectedly");
+                    if u.blocking {
+                        log::info!("User {} and {} blocks each other", u.id, auth);
+                    } else {
+                        log::info!("User {} has blocked {}", u.id, auth);
+                        if !opts.no_block {
+                            tx.send(u.id)
+                                .expect("receiver half has been closed unexpectedly");
+                        }
                     }
                 }
             }
