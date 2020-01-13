@@ -1,0 +1,5 @@
+CREATE TABLE credentials (
+  id INTEGER NOT NULL PRIMARY KEY,
+  identifier TEXT NOT NULL UNIQUE,
+  secret TEXT NOT NULL
+);

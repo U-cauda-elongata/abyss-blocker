@@ -1,0 +1,57 @@
+diff --git a/src/schema.rs b/src/schema.rs
+index c161d57..f1edf78 100644
+--- a/src/schema.rs
++++ b/src/schema.rs
+@@ -1,8 +1,8 @@
+ table! {
+     blocks (source, target) {
+-        source -> Integer,
+-        target -> Integer,
+-        retrieved_at -> Integer,
++        source -> BigInt,
++        target -> BigInt,
++        retrieved_at -> BigInt,
+     }
+ }
+ 
+@@ -17,7 +17,7 @@ table! {
+ table! {
+     default_user (id) {
+         id -> Integer,
+-        user -> Integer,
++        user -> BigInt,
+     }
+ }
+ 
+@@ -31,9 +31,9 @@ table! {
+ table! {
+     tokens (id) {
+         id -> Integer,
+         client -> Integer,
+         token -> Integer,
+-        user -> Integer,
++        user -> BigInt,
+     }
+ }
+ 
+@@ -40,9 +40,9 @@ table! {
+ table! {
+     user_list_cursors (endpoint, user) {
+         endpoint -> Integer,
+-        authenticated_user -> Integer,
+-        user -> Integer,
+-        cursor -> Integer,
++        authenticated_user -> BigInt,
++        user -> BigInt,
++        cursor -> BigInt,
+     }
+ }
+ 
+@@ -49,6 +49,6 @@ table! {
+ table! {
+     users (id) {
+-        id -> Integer,
++        id -> BigInt,
+     }
+ }
+ 

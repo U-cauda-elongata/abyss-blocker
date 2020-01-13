@@ -1,0 +1,20 @@
+[package]
+name = "abyss-blocker"
+version = "0.0.0"
+authors = ["Yu Onaga <ursus.cauda.elongata@gmail.com>"]
+description = "Wenn du den Abgrund blockierst, zurückblockiert der Abgrund auch dich."
+edition = "2018"
+publish = false
+
+[dependencies]
+atoi = "0.3"
+atty = "0.2"
+diesel = { version = "1.4.3", default-features = false, features = ["sqlite"] }
+env_logger = "0.7"
+futures = "0.3"
+log = "0.4"
+oauth = { version = "0.3", package = "oauth1-request" }
+reqwest = { version = "0.10", features = ["json"] }
+structopt = "0.3"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "0.2", features = ["macros", "stream", "time"] }
