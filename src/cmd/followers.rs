@@ -15,15 +15,19 @@ use crate::twitter;
 
 #[derive(StructOpt)]
 pub struct Opts {
-    #[structopt(about = "User IDs of the users to search followers of")]
+    /// User IDs of the users to search followers of
     users: Vec<i64>,
-    #[structopt(long, about = "User ID of the user to authorize")]
+    /// User ID of the user to authorize
+    #[structopt(long)]
     login: Option<i64>,
-    #[structopt(long, about = "Path to the database", default_value = "db.sqlite3")]
+    /// Path to the database
+    #[structopt(long, default_value = "db.sqlite3")]
     database: String,
-    #[structopt(short, long, about = "Do not block the users")]
+    /// Do not block the users
+    #[structopt(short, long)]
     no_block: bool,
-    #[structopt(long, about = "Search from the beginning instead of resuming")]
+    /// Search from the beginning instead of resuming
+    #[structopt(long)]
     reset: bool,
 }
 

@@ -11,9 +11,11 @@ use crate::twitter;
 
 #[derive(StructOpt)]
 pub struct Opts {
-    #[structopt(long, about = "Path to the database", default_value = "db.sqlite3")]
+    /// Path to the database
+    #[structopt(long, default_value = "db.sqlite3")]
     database: String,
-    #[structopt(short, long, about = "Do not check validity of the credentials")]
+    /// Do not check validity of the credentials
+    #[structopt(short, long)]
     no_verify: bool,
 }
 

@@ -6,9 +6,9 @@ use crate::schema::*;
 
 #[derive(StructOpt)]
 pub struct Opts {
-    #[structopt(about = "User ID")]
+    /// User ID
     user: i64,
-    #[structopt(long, about = "Path to the database", default_value = "db.sqlite3")]
+    /// Path to the database
     database: String,
 }
 
