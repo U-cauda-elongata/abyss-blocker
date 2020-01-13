@@ -159,7 +159,7 @@ pub async fn run(opts: Opts) {
             }
             for u in &blockers {
                 if u.blocking {
-                    log::info!("User {} and {} blocks each other", u.id, auth);
+                    log::info!("User {} and {} block each other", u.id, auth);
                 } else {
                     log::info!("User {} has blocked {}", u.id, auth);
                     if !opts.no_block {
