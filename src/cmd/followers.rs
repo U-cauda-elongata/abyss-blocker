@@ -145,7 +145,7 @@ pub async fn run(opts: Opts) {
                 .users
                 .iter()
                 .filter(|u| u.blocked_by)
-                .map(|u| (blocks::source.eq(u.id), blocks::target.eq(opts.user)))
+                .map(|u| (blocks::source.eq(u.id), blocks::target.eq(auth)))
                 .collect();
             if !blocks.is_empty() {
                 insert_or_ignore_into(blocks::table)
