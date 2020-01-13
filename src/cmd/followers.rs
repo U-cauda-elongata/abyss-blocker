@@ -15,8 +15,8 @@ use crate::twitter;
 
 #[derive(StructOpt)]
 pub struct Opts {
-    #[structopt(about = "User ID of the user to search followers of")]
-    user: i64,
+    #[structopt(about = "User IDs of the users to search followers of")]
+    users: Vec<i64>,
     #[structopt(long, about = "User ID of the user to authorize")]
     login: Option<i64>,
     #[structopt(long, about = "Path to the database", default_value = "db.sqlite3")]
@@ -62,133 +62,136 @@ pub async fn run(opts: Opts) {
             .unwrap()
     };
 
-    let mut cursor = if opts.reset {
-        replace_into(user_list_cursors::table)
-            .values((
-                user_list_cursors::endpoint.eq(endpoint),
-                user_list_cursors::authenticated_user.eq(auth),
-                user_list_cursors::user.eq(opts.user),
-                user_list_cursors::cursor.eq(-1),
-            ))
-            .execute(&conn)
-            .unwrap();
-        -1
-    } else {
-        user_list_cursors::table
-            .select(user_list_cursors::cursor)
-            .find((endpoint, auth, opts.user))
-            .get_result::<i64>(&conn)
-            .optional()
-            .unwrap()
-            .unwrap_or(-1)
-    };
-
     let (tx, rx) = unbounded_channel();
 
     // Receive user IDs from `searcher` and block them.
     let blocker = blocker(auth, rx, &credentials, &conn, &http);
 
     let borrow = (&credentials, &conn, &http);
-    // Search for IDs of users who block `auth` and send them to `blocker`.
+    // Search for IDs of users who block `auth`, and send them to `blocker`.
     let searcher = async move {
         let (credentials, conn, http) = borrow;
 
-        log::info!("Started searching the followers of user {}", opts.user);
-
-        while cursor != 0 {
-            let oauth::Request {
-                authorization,
-                data: uri,
-            } = oauth::Builder::new(credentials.client(), oauth::HmacSha1)
-                .token(credentials.token())
-                .get(
-                    twitter::FOLLOWERS_LIST,
-                    &twitter::FollowersList {
-                        user_id: opts.user,
-                        count: 200,
-                        skip_status: true,
-                        include_user_entities: false,
-                        cursor,
-                    },
-                );
-
-            log::info!("Retrieving the follower list with cursor = {}", cursor);
-            let response = http
-                .get(&uri)
-                .header(AUTHORIZATION, authorization)
-                .send()
-                .await
-                .unwrap();
-            let rate_limit = twitter::rate_limit(response.headers());
-
-            match response.status() {
-                StatusCode::TOO_MANY_REQUESTS => {
-                    log::warn!("Got a TooManyRequest error");
-                    wait_until(rate_limit.unwrap().reset + 1).await;
-                    continue;
-                }
-                StatusCode::NOT_FOUND => {
-                    log::error!("The user was not found");
-                    return;
-                }
-                s if s.is_success() => {}
-                s => {
-                    log::error!("Unexpected status code: {:?}", s);
-                    log::error!("Response body: {:?}", response.text().await);
-                    return;
-                }
-            }
-
-            let users: twitter::Users = response.json().await.unwrap();
-
-            let blockers: Vec<_> = users.users.iter().filter(|u| u.blocked_by).collect();
-            if !blockers.is_empty() {
-                let user_inserts: Vec<_> = blockers.iter().map(|u| users::id.eq(u.id)).collect();
-                insert_or_ignore_into(users::table)
-                    .values(user_inserts)
+        for &user in &opts.users {
+            let mut cursor = if opts.reset {
+                replace_into(user_list_cursors::table)
+                    .values((
+                        user_list_cursors::endpoint.eq(endpoint),
+                        user_list_cursors::authenticated_user.eq(auth),
+                        user_list_cursors::user.eq(user),
+                        user_list_cursors::cursor.eq(-1),
+                    ))
                     .execute(conn)
                     .unwrap();
-                let blocks: Vec<_> = blockers
-                    .iter()
-                    .map(|u| (blocks::source.eq(u.id), blocks::target.eq(auth)))
-                    .collect();
-                insert_or_ignore_into(blocks::table)
-                    .values(blocks)
+                -1
+            } else {
+                user_list_cursors::table
+                    .select(user_list_cursors::cursor)
+                    .find((endpoint, auth, user))
+                    .get_result::<i64>(conn)
+                    .optional()
+                    .unwrap()
+                    .unwrap_or(-1)
+            };
+
+            log::info!("Started searching the followers of user {}", user);
+
+            while cursor != 0 {
+                let oauth::Request {
+                    authorization,
+                    data: uri,
+                } = oauth::Builder::new(credentials.client(), oauth::HmacSha1)
+                    .token(credentials.token())
+                    .get(
+                        twitter::FOLLOWERS_LIST,
+                        &twitter::FollowersList {
+                            user_id: user,
+                            count: 200,
+                            skip_status: true,
+                            include_user_entities: false,
+                            cursor,
+                        },
+                    );
+
+                log::info!("Retrieving the follower list with cursor = {}", cursor);
+                let response = http
+                    .get(&uri)
+                    .header(AUTHORIZATION, authorization)
+                    .send()
+                    .await
+                    .unwrap();
+                let rate_limit = twitter::rate_limit(response.headers());
+
+                match response.status() {
+                    StatusCode::TOO_MANY_REQUESTS => {
+                        log::warn!("Got a TooManyRequest error");
+                        wait_until(rate_limit.unwrap().reset + 1).await;
+                        continue;
+                    }
+                    StatusCode::NOT_FOUND => {
+                        log::error!("The user was not found");
+                        return;
+                    }
+                    s if s.is_success() => {}
+                    s => {
+                        log::error!("Unexpected status code: {:?}", s);
+                        log::error!("Response body: {:?}", response.text().await);
+                        return;
+                    }
+                }
+
+                let users: twitter::Users = response.json().await.unwrap();
+
+                let blockers: Vec<_> = users.users.iter().filter(|u| u.blocked_by).collect();
+                if !blockers.is_empty() {
+                    let user_inserts: Vec<_> =
+                        blockers.iter().map(|u| users::id.eq(u.id)).collect();
+                    insert_or_ignore_into(users::table)
+                        .values(user_inserts)
+                        .execute(conn)
+                        .unwrap();
+                    let blocks: Vec<_> = blockers
+                        .iter()
+                        .map(|u| (blocks::source.eq(u.id), blocks::target.eq(auth)))
+                        .collect();
+                    insert_or_ignore_into(blocks::table)
+                        .values(blocks)
+                        .execute(conn)
+                        .unwrap();
+                }
+                for u in &blockers {
+                    if u.blocking {
+                        log::info!("User {} and {} block each other", u.id, auth);
+                    } else {
+                        log::info!("User {} has blocked {}", u.id, auth);
+                        if !opts.no_block {
+                            tx.send(u.id)
+                                .expect("receiver half has been closed unexpectedly");
+                        }
+                    }
+                }
+
+                cursor = users.next_cursor;
+                replace_into(user_list_cursors::table)
+                    .values((
+                        user_list_cursors::endpoint.eq(endpoint),
+                        user_list_cursors::authenticated_user.eq(auth),
+                        user_list_cursors::user.eq(user),
+                        user_list_cursors::cursor.eq(cursor),
+                    ))
                     .execute(conn)
                     .unwrap();
-            }
-            for u in &blockers {
-                if u.blocking {
-                    log::info!("User {} and {} block each other", u.id, auth);
-                } else {
-                    log::info!("User {} has blocked {}", u.id, auth);
-                    if !opts.no_block {
-                        tx.send(u.id)
-                            .expect("receiver half has been closed unexpectedly");
+
+                if let Some(rl) = rate_limit {
+                    if rl.remaining == 0 {
+                        log::info!("Rate limit exhausted");
+                        wait_until(rl.reset + 1).await;
                     }
                 }
             }
 
-            cursor = users.next_cursor;
-            replace_into(user_list_cursors::table)
-                .values((
-                    user_list_cursors::endpoint.eq(endpoint),
-                    user_list_cursors::authenticated_user.eq(auth),
-                    user_list_cursors::user.eq(opts.user),
-                    user_list_cursors::cursor.eq(cursor),
-                ))
-                .execute(conn)
-                .unwrap();
-
-            if let Some(rl) = rate_limit {
-                if rl.remaining == 0 {
-                    log::info!("Rate limit exhausted");
-                    wait_until(rl.reset + 1).await;
-                }
-            }
+            log::info!("Finished searching the followers of user {}", user);
         }
-
-        log::info!("Finished searching the followers of user {}", opts.user);
     };
 
     futures::future::join(searcher, blocker).await;
