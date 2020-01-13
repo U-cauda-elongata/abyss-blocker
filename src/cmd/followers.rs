@@ -141,28 +141,30 @@ pub async fn run(opts: Opts) {
 
             let users: twitter::Users = response.json().await.unwrap();
 
-            let blocks: Vec<_> = users
-                .users
-                .iter()
-                .filter(|u| u.blocked_by)
-                .map(|u| (blocks::source.eq(u.id), blocks::target.eq(auth)))
-                .collect();
-            if !blocks.is_empty() {
+            let blockers: Vec<_> = users.users.iter().filter(|u| u.blocked_by).collect();
+            if !blockers.is_empty() {
+                let user_inserts: Vec<_> = blockers.iter().map(|u| users::id.eq(u.id)).collect();
+                insert_or_ignore_into(users::table)
+                    .values(user_inserts)
+                    .execute(conn)
+                    .unwrap();
+                let blocks: Vec<_> = blockers
+                    .iter()
+                    .map(|u| (blocks::source.eq(u.id), blocks::target.eq(auth)))
+                    .collect();
                 insert_or_ignore_into(blocks::table)
                     .values(blocks)
                     .execute(conn)
                     .unwrap();
             }
-            for u in &users.users {
-                if u.blocked_by {
-                    if u.blocking {
-                        log::info!("User {} and {} blocks each other", u.id, auth);
-                    } else {
-                        log::info!("User {} has blocked {}", u.id, auth);
-                        if !opts.no_block {
-                            tx.send(u.id)
-                                .expect("receiver half has been closed unexpectedly");
-                        }
+            for u in &blockers {
+                if u.blocking {
+                    log::info!("User {} and {} blocks each other", u.id, auth);
+                } else {
+                    log::info!("User {} has blocked {}", u.id, auth);
+                    if !opts.no_block {
+                        tx.send(u.id)
+                            .expect("receiver half has been closed unexpectedly");
                     }
                 }
             }
