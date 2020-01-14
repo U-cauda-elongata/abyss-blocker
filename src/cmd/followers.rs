@@ -76,7 +76,7 @@ pub async fn run(opts: Opts) {
     let searcher = async move {
         let (credentials, conn, http) = borrow;
 
-        for &user in &opts.users {
+        'outer: for &user in &opts.users {
             let mut cursor = if opts.reset {
                 replace_into(user_list_cursors::table)
                     .values((
@@ -134,7 +134,7 @@ pub async fn run(opts: Opts) {
                     }
                     StatusCode::NOT_FOUND => {
                         log::error!("The user was not found");
-                        return;
+                        continue 'outer;
                     }
                     s if s.is_success() => {}
                     s => {
